@@ -38,10 +38,7 @@ use ratatui_image::{
 use tdf::{
 	PrerenderLimit,
 	converter::{ConvertedPage, ConverterMsg, run_conversion_loop},
-	detect::{
-		ForcedProtocol, IDENTITY_TIMEOUT, env_hints_iterm2, in_tmux, query_terminal_identity,
-		should_use_iterm2
-	},
+	detect::{ForcedProtocol, in_tmux, is_iterm2},
 	iterm2,
 	kitty::{
 		DisplayErr, DisplayErrSource, KittyDisplay, display_kitty_images, do_shms_work, run_action
@@ -296,18 +293,9 @@ async fn inner_main() -> Result<(), WrappedErr> {
 		// of it for us, and its own protocol is a better fit than sixel as well. The probing
 		// can't tell us that we're in iTerm2 though, so we ask the terminal what it is, and like
 		// with the picker, we need to do that before anything else starts reading input.
-		None if matches!(detected_protocol, ProtocolType::Kitty | ProtocolType::Sixel) => {
-			let identity = query_terminal_identity(IDENTITY_TIMEOUT);
-			log::debug!("terminal identifies itself as {identity:?}");
-
-			if should_use_iterm2(
-				detected_protocol,
-				identity.as_deref(),
-				env_hints_iterm2(|name| std::env::var(name).ok())
-			) {
-				picker.set_protocol_type(ProtocolType::Iterm2);
-			}
-		}
+		None if matches!(detected_protocol, ProtocolType::Kitty | ProtocolType::Sixel)
+			&& is_iterm2() =>
+			picker.set_protocol_type(ProtocolType::Iterm2),
 		None => ()
 	}
 
@@ -355,7 +343,7 @@ async fn inner_main() -> Result<(), WrappedErr> {
 			width: cell_width_px,
 			height: cell_height_px
 		},
-		in_tmux: in_tmux(|name| std::env::var(name).ok())
+		in_tmux: in_tmux()
 	};
 
 	tokio::spawn(run_conversion_loop(

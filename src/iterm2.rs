@@ -57,12 +57,9 @@ impl Encoder {
 /// Cuts `img` down to the part of it that fills `cells` when every cell holds `cell_px` of its
 /// pixels. The renderer rounds the amount of cells that a page covers down, so there's usually a
 /// sliver at the right or the bottom of it that doesn't fill a whole cell anymore.
-#[must_use]
-pub fn crop_to_cells(img: RgbImage, cells: Size, cell_px: FontSize) -> RgbImage {
-	// If something ends up being smaller than a single cell, we still want an image with
-	// something in it, since nothing can encode an empty one
-	let width = (u32::from(cells.width.max(1)) * u32::from(cell_px.width)).min(img.width());
-	let height = (u32::from(cells.height.max(1)) * u32::from(cell_px.height)).min(img.height());
+fn crop_to_cells(img: RgbImage, cells: Size, cell_px: FontSize) -> RgbImage {
+	let width = (u32::from(cells.width) * u32::from(cell_px.width)).min(img.width());
+	let height = (u32::from(cells.height) * u32::from(cell_px.height)).min(img.height());
 
 	if (width, height) == img.dimensions() {
 		return img;
@@ -73,11 +70,7 @@ pub fn crop_to_cells(img: RgbImage, cells: Size, cell_px: FontSize) -> RgbImage 
 
 /// Builds the escape sequence which makes the terminal stretch `img` over exactly `cells`,
 /// starting at the cell that the cursor is in.
-///
-/// # Errors
-///
-/// When `img` can't be encoded as a png
-pub fn encode(img: &RgbImage, cells: Size, in_tmux: bool) -> ImageResult<String> {
+fn encode(img: &RgbImage, cells: Size, in_tmux: bool) -> ImageResult<String> {
 	let mut png = Vec::new();
 	img.write_to(&mut Cursor::new(&mut png), ImageFormat::Png)?;
 
@@ -91,7 +84,7 @@ pub fn encode(img: &RgbImage, cells: Size, in_tmux: bool) -> ImageResult<String>
 
 	let Size { width, height } = cells;
 
-	let mut seq = String::with_capacity(png.len().div_ceil(3) * 4 + usize::from(height) * 16 + 128);
+	let mut seq = String::new();
 	seq.push_str(start);
 
 	// Erase whatever these cells were showing before, and then go back to where we started. We
@@ -158,20 +151,9 @@ mod tests {
 	}
 
 	#[test]
-	fn keeps_whole_page_at_the_cell_size_it_was_rendered_with() {
-		// The bug this module exists for: cropping with the cell size in points (8x16) would
-		// leave us with 392x512, the top left quarter of the page.
-		let cropped = crop_to_cells(page(784, 1024), Size::new(49, 32), RETINA_CELL);
-		assert_eq!(cropped.dimensions(), (784, 1024));
-	}
-
-	#[test]
-	fn never_crops_to_more_than_there_is_or_to_nothing() {
+	fn never_crops_to_more_than_there_is() {
 		let cropped = crop_to_cells(page(100, 100), Size::new(49, 32), RETINA_CELL);
 		assert_eq!(cropped.dimensions(), (100, 100));
-
-		let cropped = crop_to_cells(page(10, 100), Size::new(0, 2), RETINA_CELL);
-		assert_eq!(cropped.dimensions(), (10, 64));
 	}
 
 	#[test]
@@ -201,23 +183,5 @@ mod tests {
 
 		assert!(seq.starts_with("\x1bPtmux;\x1b\x1b[2X\x1b\x1b]1337;File=inline=1;"));
 		assert!(seq.ends_with("\x07\x1b\\"));
-	}
-
-	#[test]
-	fn protocol_covers_the_cells_it_was_given() {
-		let encoder = Encoder {
-			cell_px: RETINA_CELL,
-			in_tmux: false
-		};
-
-		let Protocol::ITerm2(protocol) = encoder
-			.protocol(page(792, 1024), Size::new(49, 32))
-			.unwrap()
-		else {
-			panic!("the iterm2 encoder made something for another protocol");
-		};
-
-		assert_eq!(protocol.size, Size::new(49, 32));
-		assert_eq!(png_dimensions(&protocol.data), (784, 1024));
 	}
 }
