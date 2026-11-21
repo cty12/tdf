@@ -598,20 +598,20 @@ impl Tui {
 	}
 
 	pub fn page_ready(&mut self, img: ConvertedImage, page_num: usize, num_results: usize) {
-		// If this new image woulda fit within the available space on the last render AND it's
-		// within the range where it might've been rendered with the last shown pages, then reset
-		// the last rect marker so that all images are forced to redraw on next render and this one
-		// is drawn with them
-		if page_num >= self.page && page_num <= self.page + self.last_render.pages_shown {
-			self.last_render.rect = Rect::default();
+		// If this new image is going to show up, then reset the last rect marker so that all images
+		// are forced to redraw on next render and this one is drawn with them. That's the case if
+		// it replaces one of the pages that are shown right now, or if it's next in line after
+		// them and there's enough space left over for it. We don't want to redraw for anything
+		// else, since that means sending every image again for some protocols.
+		let first_not_shown = self.page + self.last_render.pages_shown;
+		let will_be_shown = if page_num == first_not_shown {
+			img.w_h().0 <= self.last_render.unused_width
 		} else {
-			let img_w = img.w_h().0;
-			if img_w <= self.last_render.unused_width {
-				let num_fit = self.last_render.unused_width / img_w;
-				if page_num >= self.page && (self.page + num_fit as usize) >= page_num {
-					self.last_render.rect = Rect::default();
-				}
-			}
+			(self.page..first_not_shown).contains(&page_num)
+		};
+
+		if will_be_shown {
+			self.last_render.rect = Rect::default();
 		}
 
 		// We always just set this here because we handle reloading in the `set_n_pages` function.

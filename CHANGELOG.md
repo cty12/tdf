@@ -6,6 +6,7 @@
 - Fixed issue with images clearing/flashing after displaying a certain number on kitty
 - Fixed iTerm2 being treated as a kitty terminal, which resulted in "Couldn't transfer image to the terminal" errors and pages endlessly reloading ([#149](https://github.com/itsjunetime/tdf/issues/149)). tdf now asks the terminal what it is, so this also works over ssh, and uses the iterm2 protocol there
 - Fixed only the top left quarter of each page being displayed in iTerm2 on high-dpi (retina) displays. Images sent with the iterm2 protocol are now sized in cells instead of pixels, and are rendered at the display's full resolution
+- Fixed visible pages being redrawn whenever a page that isn't shown finished rendering, which caused flickering in iTerm2 while a document loaded
 - Added `--protocol` flag to force a specific image protocol (`kitty`, `iterm2`, `sixel`, or `halfblocks`) instead of detecting it
 - (Internal) decreased runtime footprint of tokio runtime
 
