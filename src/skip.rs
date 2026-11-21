@@ -65,7 +65,7 @@ impl Iterator for InterleavedAroundWithMax {
 				// hit the max, then 0, then 1). So adding 1 before the modulo makes it hit the
 				// right numbers. And we can be sure the + here doesn't overflow 'cause we already
 				// checked the `usize::MAX` up above
-				Some(next_val) => (next_val % self.exclusive_max.get()) + self.inclusive_min,
+				Some(next_val) => (next_val % self.exclusive_max) + self.inclusive_min,
 				// If we added them and it would've overflowed usize::MAX, then we see how much
 				// of the change would be remaining after reaching `max`
 				None =>
@@ -93,7 +93,7 @@ impl Iterator for InterleavedAroundWithMax {
 		self.next_op = match self.next_op {
 			PlusOrMinus::Plus => PlusOrMinus::Minus,
 			PlusOrMinus::Minus => {
-				self.next_change = (self.next_change + 1) % self.exclusive_max.get();
+				self.next_change = (self.next_change + 1) % self.exclusive_max;
 				PlusOrMinus::Plus
 			}
 		};

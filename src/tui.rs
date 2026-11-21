@@ -740,7 +740,8 @@ impl Tui {
 					}
 					KeyCode::Char(c)
 						if let BottomMessage::Input(InputCommand::GoToPage(_)) =
-							self.bottom_msg && matches!(c, 'g' if self.is_kitty) =>
+							self.bottom_msg
+							&& matches!(c, 'g' if self.is_kitty) =>
 					{
 						self.set_msg(MessageSetting::Pop);
 						self.update_zoom(Zoom::pan_bottom)

@@ -146,7 +146,8 @@ pub async fn run_conversion_loop(
 				let rn = SystemTime::now()
 					.duration_since(UNIX_EPOCH)
 					.unwrap_or_default()
-					.as_nanos() % 1_000_000;
+					.as_nanos()
+					% 1_000_000;
 
 				let mut img = if shms_work {
 					let shm_name = format!("/tdf_{pid}_{rn}_{page_num}");
