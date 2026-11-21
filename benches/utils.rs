@@ -10,6 +10,7 @@ use ratatui_image::{
 };
 use tdf::{
 	converter::{ConvertedPage, ConverterMsg, run_conversion_loop},
+	iterm2,
 	renderer::{RenderError, RenderInfo, RenderNotif, fill_default, start_rendering}
 };
 
@@ -130,6 +131,10 @@ pub fn start_converting_loop(
 		to_main_tx,
 		from_main_rx,
 		picker,
+		iterm2::Encoder {
+			cell_px: FONT_SIZE,
+			in_tmux: false
+		},
 		prerender,
 		// just assume shms work for now, who cares
 		true

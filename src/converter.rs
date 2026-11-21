@@ -17,6 +17,7 @@ use ratatui_image::{
 use rayon::iter::ParallelIterator as _;
 
 use crate::{
+	iterm2,
 	renderer::{PageInfo, RenderError, fill_default},
 	skip::InterleavedAroundWithMax
 };
@@ -70,6 +71,7 @@ pub async fn run_conversion_loop(
 	sender: Sender<Result<ConvertedPage, RenderError>>,
 	receiver: Receiver<ConverterMsg>,
 	picker: Picker,
+	iterm2: iterm2::Encoder,
 	prerender: usize,
 	shms_work: bool
 ) -> Result<(), Box<SendError<Result<ConvertedPage, RenderError>>>> {
@@ -77,9 +79,11 @@ pub async fn run_conversion_loop(
 	let mut page: usize = 0;
 	let pid = std::process::id();
 
+	#[expect(clippy::too_many_arguments)]
 	fn next_page(
 		images: &mut [Option<PageInfo>],
 		picker: &Picker,
+		iterm2: iterm2::Encoder,
 		page: usize,
 		iteration: &mut usize,
 		prerender: usize,
@@ -139,10 +143,9 @@ pub async fn run_conversion_loop(
 			height: page_info.img_data.cell_h
 		};
 
-		let dyn_img = DynamicImage::ImageRgb8(dyn_img);
-
 		let txt_img = match picker.protocol_type() {
 			ProtocolType::Kitty => {
+				let dyn_img = DynamicImage::ImageRgb8(dyn_img);
 				let rn = SystemTime::now()
 					.duration_since(UNIX_EPOCH)
 					.unwrap_or_default()
@@ -171,9 +174,19 @@ pub async fn run_conversion_loop(
 					cell_h: page_info.img_data.cell_h
 				}
 			}
+			// We don't leave this one to `ratatui_image` since it gets the size of the image wrong
+			// on high-dpi displays; see the `iterm2` module for the details
+			ProtocolType::Iterm2 =>
+				ConvertedImage::Generic(iterm2.protocol(dyn_img, img_size).map_err(|e| {
+					RenderError::Converting(format!("Couldn't encode page for iterm2: {e}"))
+				})?),
 			_ => ConvertedImage::Generic(
 				picker
-					.new_protocol(dyn_img, img_size, Resize::Crop(None))
+					.new_protocol(
+						DynamicImage::ImageRgb8(dyn_img),
+						img_size,
+						Resize::Crop(None)
+					)
 					.map_err(|e| {
 						RenderError::Converting(format!(
 							"Couldn't convert DynamicImage to ratatui image: {e}"
@@ -228,6 +241,7 @@ pub async fn run_conversion_loop(
 			match next_page(
 				&mut images,
 				&picker,
+				iterm2,
 				page,
 				&mut iteration,
 				prerender,

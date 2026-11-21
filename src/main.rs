@@ -38,6 +38,11 @@ use ratatui_image::{
 use tdf::{
 	PrerenderLimit,
 	converter::{ConvertedPage, ConverterMsg, run_conversion_loop},
+	detect::{
+		ForcedProtocol, IDENTITY_TIMEOUT, env_hints_iterm2, in_tmux, query_terminal_identity,
+		should_use_iterm2
+	},
+	iterm2,
 	kitty::{
 		DisplayErr, DisplayErrSource, KittyDisplay, display_kitty_images, do_shms_work, run_action
 	},
@@ -118,6 +123,8 @@ async fn inner_main() -> Result<(), WrappedErr> {
 		optional -b,--black-color black: String
 		/// Use terminal foreground/background colors for the PDF
 		optional -t,--terminal-colors
+		/// Force the image protocol instead of detecting it (kitty, iterm2, sixel, or halfblocks)
+		optional --protocol protocol: ForcedProtocol
 		/// Print the version and exit
 		optional --version
 		/// PDF file to read
@@ -263,7 +270,7 @@ async fn inner_main() -> Result<(), WrappedErr> {
 
 	// We need to create `picker` on this thread because if we create it on the `renderer` thread,
 	// it messes up something with user input. Input never makes it to the crossterm thing
-	let picker = Picker::from_query_stdio()
+	let mut picker = Picker::from_query_stdio()
 		.or_else(|e| match e {
 			ratatui_image::errors::Errors::NoFontSize if
 				window_size.width != 0
@@ -281,6 +288,34 @@ async fn inner_main() -> Result<(), WrappedErr> {
 			)),
 			e => Err(WrappedErr(format!("Couldn't get the necessary information to set up images: {e}").into()))
 		})?;
+
+	let detected_protocol = picker.protocol_type();
+	match flags.protocol {
+		Some(ForcedProtocol(forced)) => picker.set_protocol_type(forced),
+		// iTerm2 claims to support the kitty protocol when probed, but doesn't implement enough
+		// of it for us, and its own protocol is a better fit than sixel as well. The probing
+		// can't tell us that we're in iTerm2 though, so we ask the terminal what it is, and like
+		// with the picker, we need to do that before anything else starts reading input.
+		None if matches!(detected_protocol, ProtocolType::Kitty | ProtocolType::Sixel) => {
+			let identity = query_terminal_identity(IDENTITY_TIMEOUT);
+			log::debug!("terminal identifies itself as {identity:?}");
+
+			if should_use_iterm2(
+				detected_protocol,
+				identity.as_deref(),
+				env_hints_iterm2(|name| std::env::var(name).ok())
+			) {
+				picker.set_protocol_type(ProtocolType::Iterm2);
+			}
+		}
+		None => ()
+	}
+
+	log::debug!(
+		"detected protocol {detected_protocol:?}, using {:?} with font size {:?}; rendering with {cell_width_px}x{cell_height_px} pixels per cell",
+		picker.protocol_type(),
+		picker.font_size()
+	);
 
 	// then we want to spawn off the rendering task
 	// We need to use the thread::spawn API so that this exists in a thread not owned by tokio,
@@ -315,8 +350,16 @@ async fn inner_main() -> Result<(), WrappedErr> {
 
 	let shms_work = is_kitty && do_shms_work(&mut ev_stream).await;
 
+	let iterm2 = iterm2::Encoder {
+		cell_px: FontSize {
+			width: cell_width_px,
+			height: cell_height_px
+		},
+		in_tmux: in_tmux(|name| std::env::var(name).ok())
+	};
+
 	tokio::spawn(run_conversion_loop(
-		to_main, from_main, picker, 20, shms_work
+		to_main, from_main, picker, iterm2, 20, shms_work
 	));
 
 	let file_name = path.file_name().map_or_else(

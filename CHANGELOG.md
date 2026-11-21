@@ -4,6 +4,9 @@
 - Added keybindings (`0`/`$`) to scroll to left or right side of zoomed-in image ([#131](https://github.com/itsjunetime/tdf/pull/131), thank you [@IshDeshpa](https://github.com/IshDeshpa)!)
 - Added `-t` flag to use terminal foreground/background colors in pdf rendering ([#138](https://github.com/itsjunetime/tdf/pull/138), thank you [@unorsk](https://github.com/unorsk)!
 - Fixed issue with images clearing/flashing after displaying a certain number on kitty
+- Fixed iTerm2 being treated as a kitty terminal, which resulted in "Couldn't transfer image to the terminal" errors and pages endlessly reloading ([#149](https://github.com/itsjunetime/tdf/issues/149)). tdf now asks the terminal what it is, so this also works over ssh, and uses the iterm2 protocol there
+- Fixed only the top left quarter of each page being displayed in iTerm2 on high-dpi (retina) displays. Images sent with the iterm2 protocol are now sized in cells instead of pixels, and are rendered at the display's full resolution
+- Added `--protocol` flag to force a specific image protocol (`kitty`, `iterm2`, `sixel`, or `halfblocks`) instead of detecting it
 - (Internal) decreased runtime footprint of tokio runtime
 
 # v0.5.0

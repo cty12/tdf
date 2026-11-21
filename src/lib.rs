@@ -10,6 +10,8 @@ pub enum PrerenderLimit {
 }
 
 pub mod converter;
+pub mod detect;
+pub mod iterm2;
 pub mod kitty;
 pub mod renderer;
 pub mod skip;
